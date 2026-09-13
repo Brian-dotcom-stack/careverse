@@ -1,0 +1,6 @@
+{
+  "name": "CareVerse",
+  "description": "Virtual workspace and operations platform for care-sector teams, rota planning, attendance, HR, and compliance.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
