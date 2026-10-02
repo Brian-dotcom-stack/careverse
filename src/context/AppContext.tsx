@@ -12,7 +12,12 @@ import {
   AuditLogEntry,
   UserRole,
   StaffPresenceStatus,
-  SupportedLanguage
+  SupportedLanguage,
+  EmployeeOnboardingRecord,
+  OnboardingDocumentStatus,
+  TrainingModuleStatus,
+  TimeOffRequest,
+  TimeOffReason
 } from '../types';
 import {
   mockTenants,
@@ -26,8 +31,14 @@ import {
   mockChatMessages,
   mockAuditLogs,
   getTodayDateString,
-  languageTranslations
+  languageTranslations,
+  mockTimeOffRequests
 } from '../data/mockData';
+import {
+  mockOnboardingRecords,
+  standardCareDocuments,
+  standardCareTrainingModules
+} from '../data/mockOnboardingData';
 
 export interface ToastItem {
   id: string;
@@ -90,6 +101,40 @@ interface AppContextType {
   updateIncidentStatus: (incidentId: string, status: IncidentReport['status'], investigationNotes?: string) => void;
   policies: PolicyDocument[];
   acknowledgePolicy: (policyId: string) => void;
+  onboardingRecords: EmployeeOnboardingRecord[];
+  updateOnboardingDocumentStatus: (candidateId: string, docId: string, newStatus: OnboardingDocumentStatus, notes?: string) => void;
+  updateOnboardingTrainingStatus: (candidateId: string, moduleId: string, newStatus: TrainingModuleStatus, score?: number) => void;
+  enrollNewStarter: (candidate: {
+    employeeName: string;
+    employeeRole: UserRole;
+    jobTitle: string;
+    department: 'Nursing' | 'Care' | 'Administration' | 'Management' | 'Housekeeping';
+    email: string;
+    phone: string;
+    startDate: string;
+    targetCompletionDate: string;
+    mentorName: string;
+    notes?: string;
+  }) => void;
+  signoffOnboardingClearance: (candidateId: string) => void;
+  logShadowShift: (candidateId: string) => void;
+  toggleInductionStep: (candidateId: string, step: 'inductionTour' | 'uniformBadge') => void;
+  bulkVerifyDocuments: (candidateId: string) => void;
+  bulkCompleteTraining: (candidateId: string) => void;
+
+  // Time Off & Absence Requests
+  timeOffRequests: TimeOffRequest[];
+  requestTimeOff: (requestData: {
+    staffId: string;
+    startDate: string;
+    endDate: string;
+    reason: TimeOffReason;
+    notes: string;
+    emergencyCoverNotes?: string;
+    attachmentName?: string;
+  }) => void;
+  reviewTimeOffRequest: (requestId: string, status: 'approved' | 'rejected', reviewNotes?: string) => void;
+  deleteTimeOffRequest: (requestId: string) => void;
 
   // Comms
   announcements: Announcement[];
@@ -556,6 +601,429 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     addToast('Policy Signed', 'Your digital acknowledgement has been recorded in your personnel file', 'success');
   };
 
+  // 6b. Employee Onboarding & Compliance Sub-Module
+  const [onboardingRecords, setOnboardingRecords] = useState<EmployeeOnboardingRecord[]>(mockOnboardingRecords);
+
+  const recalculateRecord = (record: EmployeeOnboardingRecord): EmployeeOnboardingRecord => {
+    const totalDocs = record.documents.length || 1;
+    const verifiedDocs = record.documents.filter((d) => d.status === 'verified').length;
+    const docScore = (verifiedDocs / totalDocs) * 45;
+
+    const totalTraining = record.trainingModules.length || 1;
+    const completedTraining = record.trainingModules.filter((t) => t.status === 'completed').length;
+    const trainingScore = (completedTraining / totalTraining) * 40;
+
+    const totalShadow = record.shadowShiftsRequired || 3;
+    const completedShadow = Math.min(record.shadowShiftsCompleted, totalShadow);
+    const shadowScore = (completedShadow / totalShadow) * 15;
+
+    const progress = Math.min(100, Math.round(docScore + trainingScore + shadowScore));
+
+    let status = record.status;
+    if (record.cqcRegistrationSignoff && progress === 100) {
+      status = 'completed';
+    } else if (verifiedDocs === totalDocs && completedTraining >= totalTraining - 1 && record.shadowShiftsCompleted >= record.shadowShiftsRequired) {
+      status = 'ready_for_duty';
+    } else if (record.documents.some((d) => d.status === 'rejected')) {
+      status = 'action_required';
+    } else if (record.status !== 'completed') {
+      status = 'in_progress';
+    }
+
+    return {
+      ...record,
+      progressPercent: progress,
+      status
+    };
+  };
+
+  const updateOnboardingDocumentStatus = (
+    candidateId: string,
+    docId: string,
+    newStatus: OnboardingDocumentStatus,
+    notes?: string
+  ) => {
+    setOnboardingRecords((prev) =>
+      prev.map((record) => {
+        if (record.id !== candidateId) return record;
+
+        const updatedDocs = record.documents.map((doc) => {
+          if (doc.id !== docId) return doc;
+          return {
+            ...doc,
+            status: newStatus,
+            verifiedDate: newStatus === 'verified' ? getTodayDateString(0) : doc.verifiedDate,
+            verifiedBy: newStatus === 'verified' ? currentUser.name : doc.verifiedBy,
+            notes: notes !== undefined ? notes : doc.notes
+          };
+        });
+
+        const updatedRecord = recalculateRecord({ ...record, documents: updatedDocs });
+        logAudit(
+          'ONBOARDING_DOC_STATUS_CHANGE',
+          `${record.employeeName} - ${docId}`,
+          `Document status set to ${newStatus} by ${currentUser.name}`,
+          newStatus === 'rejected' ? 'warning' : 'info'
+        );
+        addToast(
+          'Document Updated',
+          `${record.employeeName}: Document marked as ${newStatus.toUpperCase()}`,
+          newStatus === 'verified' ? 'success' : newStatus === 'rejected' ? 'error' : 'info'
+        );
+        return updatedRecord;
+      })
+    );
+  };
+
+  const updateOnboardingTrainingStatus = (
+    candidateId: string,
+    moduleId: string,
+    newStatus: TrainingModuleStatus,
+    score?: number
+  ) => {
+    setOnboardingRecords((prev) =>
+      prev.map((record) => {
+        if (record.id !== candidateId) return record;
+
+        const updatedTraining = record.trainingModules.map((mod) => {
+          if (mod.id !== moduleId) return mod;
+          return {
+            ...mod,
+            status: newStatus,
+            completedDate: newStatus === 'completed' ? getTodayDateString(0) : mod.completedDate,
+            score: score !== undefined ? score : newStatus === 'completed' ? 100 : mod.score,
+            certifiedBy: newStatus === 'completed' ? currentUser.name : mod.certifiedBy
+          };
+        });
+
+        const updatedRecord = recalculateRecord({ ...record, trainingModules: updatedTraining });
+        logAudit(
+          'ONBOARDING_TRAINING_UPDATE',
+          `${record.employeeName} - ${moduleId}`,
+          `Training status updated to ${newStatus}`,
+          'info'
+        );
+        addToast(
+          'Training Progress Logged',
+          `${record.employeeName}: Course marked as ${newStatus.replace('_', ' ').toUpperCase()}`,
+          'success'
+        );
+        return updatedRecord;
+      })
+    );
+  };
+
+  const enrollNewStarter = (candidate: {
+    employeeName: string;
+    employeeRole: UserRole;
+    jobTitle: string;
+    department: 'Nursing' | 'Care' | 'Administration' | 'Management' | 'Housekeeping';
+    email: string;
+    phone: string;
+    startDate: string;
+    targetCompletionDate: string;
+    mentorName: string;
+    notes?: string;
+  }) => {
+    const newId = `onb-${Date.now()}`;
+    const initialDocs = standardCareDocuments.map((doc, idx) => ({
+      ...doc,
+      id: `doc-${newId}-${idx + 1}`,
+      status: 'pending' as OnboardingDocumentStatus
+    }));
+
+    const initialTraining = standardCareTrainingModules.map((trn, idx) => ({
+      ...trn,
+      id: `trn-${newId}-${idx + 1}`,
+      status: 'not_started' as TrainingModuleStatus
+    }));
+
+    const newRecord: EmployeeOnboardingRecord = {
+      id: newId,
+      staffId: `staff-gen-${Date.now()}`,
+      employeeName: candidate.employeeName,
+      employeeRole: candidate.employeeRole,
+      jobTitle: candidate.jobTitle,
+      department: candidate.department,
+      avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
+      email: candidate.email,
+      phone: candidate.phone,
+      startDate: candidate.startDate,
+      targetCompletionDate: candidate.targetCompletionDate,
+      mentorName: candidate.mentorName,
+      status: 'in_progress',
+      progressPercent: 0,
+      documents: initialDocs,
+      trainingModules: initialTraining,
+      shadowShiftsCompleted: 0,
+      shadowShiftsRequired: 3,
+      inductionTourCompleted: false,
+      uniformAndBadgeIssued: false,
+      cqcRegistrationSignoff: false,
+      notes: candidate.notes || 'Newly enrolled starter. Pre-employment checks initiated.'
+    };
+
+    setOnboardingRecords((prev) => [newRecord, ...prev]);
+    logAudit('NEW_STARTER_ENROLLED', newRecord.employeeName, `Enrolled into CQC Onboarding Track by ${currentUser.name}`, 'info');
+    addToast('Candidate Enrolled', `${candidate.employeeName} added to HR onboarding pipeline`, 'success');
+  };
+
+  const signoffOnboardingClearance = (candidateId: string) => {
+    setOnboardingRecords((prev) =>
+      prev.map((record) => {
+        if (record.id !== candidateId) return record;
+
+        // Also update staff member in staffList if matching
+        if (record.staffId) {
+          setStaffList((staffPrev) =>
+            staffPrev.map((s) =>
+              s.id === record.staffId
+                ? {
+                    ...s,
+                    rightToWorkStatus: 'verified',
+                    mandatoryTrainingStatus: 'compliant',
+                    dbsStatus: 'valid'
+                  }
+                : s
+            )
+          );
+        }
+
+        logAudit(
+          'ONBOARDING_FINAL_SIGNOFF',
+          record.employeeName,
+          `Regulation 19 Fit & Proper Person signoff granted by ${currentUser.name}`,
+          'security'
+        );
+        addToast(
+          'Cleared for Duty!',
+          `${record.employeeName} has completed onboarding and is authorized for active rota assignment.`,
+          'success'
+        );
+
+        return {
+          ...record,
+          status: 'completed',
+          progressPercent: 100,
+          cqcRegistrationSignoff: true
+        };
+      })
+    );
+  };
+
+  const logShadowShift = (candidateId: string) => {
+    setOnboardingRecords((prev) =>
+      prev.map((record) => {
+        if (record.id !== candidateId) return record;
+        const nextCount = Math.min(record.shadowShiftsRequired + 1, record.shadowShiftsCompleted + 1);
+        const updated = recalculateRecord({ ...record, shadowShiftsCompleted: nextCount });
+        addToast('Shadow Shift Logged', `${record.employeeName}: ${nextCount}/${record.shadowShiftsRequired} completed`, 'info');
+        return updated;
+      })
+    );
+  };
+
+  const toggleInductionStep = (candidateId: string, step: 'inductionTour' | 'uniformBadge') => {
+    setOnboardingRecords((prev) =>
+      prev.map((record) => {
+        if (record.id !== candidateId) return record;
+        const updated = {
+          ...record,
+          inductionTourCompleted: step === 'inductionTour' ? !record.inductionTourCompleted : record.inductionTourCompleted,
+          uniformAndBadgeIssued: step === 'uniformBadge' ? !record.uniformAndBadgeIssued : record.uniformAndBadgeIssued
+        };
+        addToast('Induction Step Updated', 'Checklist amended successfully', 'info');
+        return updated;
+      })
+    );
+  };
+
+  const bulkVerifyDocuments = (candidateId: string) => {
+    setOnboardingRecords((prev) =>
+      prev.map((record) => {
+        if (record.id !== candidateId) return record;
+        const verifiedDocs = record.documents.map((d) => ({
+          ...d,
+          status: 'verified' as OnboardingDocumentStatus,
+          verifiedDate: getTodayDateString(0),
+          verifiedBy: currentUser.name
+        }));
+        const updated = recalculateRecord({ ...record, documents: verifiedDocs });
+        logAudit('BULK_DOCS_VERIFIED', record.employeeName, `All compliance documents verified by ${currentUser.name}`, 'info');
+        addToast('All Documents Verified', `${record.employeeName}: All compliance files cleared`, 'success');
+        return updated;
+      })
+    );
+  };
+
+  const bulkCompleteTraining = (candidateId: string) => {
+    setOnboardingRecords((prev) =>
+      prev.map((record) => {
+        if (record.id !== candidateId) return record;
+        const completedMods = record.trainingModules.map((t) => ({
+          ...t,
+          status: 'completed' as TrainingModuleStatus,
+          completedDate: getTodayDateString(0),
+          score: t.score || 100,
+          certifiedBy: currentUser.name
+        }));
+        const updated = recalculateRecord({ ...record, trainingModules: completedMods });
+        logAudit('BULK_TRAINING_PASSED', record.employeeName, `All mandatory care modules certified by ${currentUser.name}`, 'info');
+        addToast('Training Certified', `${record.employeeName}: All mandatory modules marked completed`, 'success');
+        return updated;
+      })
+    );
+  };
+
+  // 6b. Time Off & Absence Management
+  const [timeOffRequests, setTimeOffRequests] = useState<TimeOffRequest[]>(mockTimeOffRequests);
+
+  const requestTimeOff = (requestData: {
+    staffId: string;
+    startDate: string;
+    endDate: string;
+    reason: TimeOffReason;
+    notes: string;
+    emergencyCoverNotes?: string;
+    attachmentName?: string;
+  }) => {
+    const staff = staffList.find((s) => s.id === requestData.staffId) || currentUser;
+    const start = new Date(requestData.startDate);
+    const end = new Date(requestData.endDate);
+    const diffTime = Math.max(0, end.getTime() - start.getTime());
+    const totalDays = Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1);
+
+    const newRequest: TimeOffRequest = {
+      id: `leave-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      staffId: staff.id,
+      staffName: staff.name,
+      staffRole: staff.role,
+      staffAvatar: staff.avatar,
+      department: staff.department,
+      startDate: requestData.startDate,
+      endDate: requestData.endDate,
+      totalDays,
+      reason: requestData.reason,
+      notes: requestData.notes,
+      emergencyCoverNotes: requestData.emergencyCoverNotes,
+      status: 'pending',
+      requestedAt: new Date().toISOString(),
+      attachmentName: requestData.attachmentName,
+      tenantId: activeTenant.id
+    };
+
+    setTimeOffRequests((prev) => [newRequest, ...prev]);
+
+    // Check if staff has shifts during requested absence dates to update Rota engine with pending absence flag
+    const overlappingShifts = shifts.filter(
+      (s) => s.assignedStaffId === staff.id && s.date >= requestData.startDate && s.date <= requestData.endDate
+    );
+
+    if (overlappingShifts.length > 0) {
+      setShifts((prev) =>
+        prev.map((s) => {
+          if (s.assignedStaffId === staff.id && s.date >= requestData.startDate && s.date <= requestData.endDate) {
+            const conflictNotice = `Pending Absence: ${staff.name} requested ${requestData.reason} (${requestData.startDate} to ${requestData.endDate})`;
+            const existingConflicts = s.conflicts || [];
+            if (!existingConflicts.includes(conflictNotice)) {
+              return {
+                ...s,
+                conflicts: [...existingConflicts, conflictNotice]
+              };
+            }
+          }
+          return s;
+        })
+      );
+    }
+
+    logAudit(
+      'TIME_OFF_REQUESTED',
+      `Leave for ${staff.name}`,
+      `${requestData.reason} from ${requestData.startDate} to ${requestData.endDate} (${totalDays} days). ${overlappingShifts.length} shift(s) flagged on Rota.`,
+      'info'
+    );
+
+    addToast(
+      'Time Off Requested',
+      `Submitted ${requestData.reason} for ${staff.name}. Rota engine updated with pending absences.`,
+      'success'
+    );
+  };
+
+  const reviewTimeOffRequest = (requestId: string, status: 'approved' | 'rejected', reviewNotes?: string) => {
+    if (userRole !== 'Admin' && userRole !== 'Manager' && userRole !== 'HR') {
+      addToast('Permission Denied', 'Only Managers or HR administrators can approve or reject time off requests.', 'error');
+      return;
+    }
+
+    const req = timeOffRequests.find((r) => r.id === requestId);
+    if (!req) return;
+
+    setTimeOffRequests((prev) =>
+      prev.map((r) =>
+        r.id === requestId
+          ? {
+              ...r,
+              status,
+              reviewedBy: `${currentUser.name} (${userRole})`,
+              reviewedAt: new Date().toISOString(),
+              reviewNotes
+            }
+          : r
+      )
+    );
+
+    if (status === 'approved') {
+      // If approved, mark overlapping shifts as open cover so other carers can claim or managers reassign
+      setShifts((prev) =>
+        prev.map((s) => {
+          if (s.assignedStaffId === req.staffId && s.date >= req.startDate && s.date <= req.endDate) {
+            return {
+              ...s,
+              status: 'open',
+              isOpenBroadcast: true,
+              notes: `${s.notes ? s.notes + ' • ' : ''}Unfilled: ${req.staffName} on Approved Leave (${req.reason})`,
+              conflicts: [`Approved Leave: ${req.staffName} is absent. Cover required.`]
+            };
+          }
+          return s;
+        })
+      );
+    } else if (status === 'rejected') {
+      // If rejected, clear pending absence conflict notices from shifts
+      setShifts((prev) =>
+        prev.map((s) => {
+          if (s.assignedStaffId === req.staffId && s.date >= req.startDate && s.date <= req.endDate) {
+            return {
+              ...s,
+              conflicts: (s.conflicts || []).filter((c) => !c.includes('Pending Absence'))
+            };
+          }
+          return s;
+        })
+      );
+    }
+
+    logAudit(
+      status === 'approved' ? 'TIME_OFF_APPROVED' : 'TIME_OFF_REJECTED',
+      `Leave for ${req.staffName}`,
+      `Marked as ${status} by ${currentUser.name}. ${reviewNotes || ''}`,
+      status === 'approved' ? 'info' : 'warning'
+    );
+
+    addToast(
+      `Leave Request ${status === 'approved' ? 'Approved' : 'Rejected'}`,
+      `${req.staffName}'s ${req.reason} has been ${status}. Rota engine updated.`,
+      status === 'approved' ? 'success' : 'info'
+    );
+  };
+
+  const deleteTimeOffRequest = (requestId: string) => {
+    setTimeOffRequests((prev) => prev.filter((r) => r.id !== requestId));
+    addToast('Request Removed', 'Time off record deleted.', 'info');
+  };
+
   // 7. Announcements & Chat
   const [announcements, setAnnouncements] = useState<Announcement[]>(mockAnnouncements);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(mockChatMessages);
@@ -718,8 +1186,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const setActiveTenantId = (tenantId: string) => {
     setActiveTenantIdState(tenantId);
     const tenant = tenants.find((t) => t.id === tenantId);
-    logAudit('TENANT_SWITCH', `Organization ${tenant?.name}`, 'Switched active tenant boundary', 'security');
-    addToast('Organization Switched', `Active workspace: ${tenant?.name}`, 'info');
+    logAudit('SITE_SWITCH', `Site ${tenant?.name}`, 'Switched active care site boundary', 'security');
+    addToast('Care Site Switched', `Now operating at: ${tenant?.name} (CQC: ${tenant?.cqcRating})`, 'success');
   };
 
   return (
@@ -759,6 +1227,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         updateIncidentStatus,
         policies,
         acknowledgePolicy,
+        onboardingRecords,
+        updateOnboardingDocumentStatus,
+        updateOnboardingTrainingStatus,
+        enrollNewStarter,
+        signoffOnboardingClearance,
+        logShadowShift,
+        toggleInductionStep,
+        bulkVerifyDocuments,
+        bulkCompleteTraining,
+        timeOffRequests,
+        requestTimeOff,
+        reviewTimeOffRequest,
+        deleteTimeOffRequest,
         announcements,
         addAnnouncement,
         acknowledgeAnnouncement,

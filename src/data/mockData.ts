@@ -9,7 +9,8 @@ import {
   Announcement,
   VirtualRoom,
   ChatMessage,
-  AuditLogEntry
+  AuditLogEntry,
+  TimeOffRequest
 } from '../types';
 
 export const mockTenants: TenantOrganization[] = [
@@ -24,7 +25,11 @@ export const mockTenants: TenantOrganization[] = [
     geofenceRadiusMeters: 250,
     totalBedsOrClients: 48,
     activeStaffCount: 28,
-    logoColor: 'emerald'
+    logoColor: 'emerald',
+    zones: ['Oak Wing (Ground Floor)', 'Pine Wing (1st Floor)', 'Memory Garden Suite'],
+    phone: '+44 1423 500123',
+    managerName: 'Sarah Jenkins, RMN',
+    currentOccupancyOrVisits: 45
   },
   {
     id: 'org-stjudes',
@@ -37,7 +42,11 @@ export const mockTenants: TenantOrganization[] = [
     geofenceRadiusMeters: 180,
     totalBedsOrClients: 18,
     activeStaffCount: 16,
-    logoColor: 'blue'
+    logoColor: 'blue',
+    zones: ['Apartment Block A', 'Apartment Block B', 'Community Hub'],
+    phone: '+44 117 920 4455',
+    managerName: 'Marcus Bell, NVQ 5',
+    currentOccupancyOrVisits: 17
   },
   {
     id: 'org-oakridge',
@@ -50,7 +59,28 @@ export const mockTenants: TenantOrganization[] = [
     geofenceRadiusMeters: 500,
     totalBedsOrClients: 95,
     activeStaffCount: 34,
-    logoColor: 'indigo'
+    logoColor: 'indigo',
+    zones: ['North Sector Route', 'Central Sector Route', 'South Sector Route'],
+    phone: '+44 161 832 9900',
+    managerName: 'Fiona Gallagher, Registered Mgr',
+    currentOccupancyOrVisits: 88
+  },
+  {
+    id: 'org-highfield',
+    name: 'Highfield Manor Specialist Nursing & Respite',
+    code: 'HFD-NUR',
+    sector: 'Care Home',
+    cqcRating: 'Outstanding',
+    address: '19 Oxford Road, Oxford, OX3 9DU, UK',
+    coordinates: { lat: 51.7520, lng: -1.2577 },
+    geofenceRadiusMeters: 300,
+    totalBedsOrClients: 36,
+    activeStaffCount: 24,
+    logoColor: 'teal',
+    zones: ['Palliative Care Suite', 'Neuro-Rehab Wing', 'Respite Ward'],
+    phone: '+44 1865 741200',
+    managerName: 'Dr. Alistair Finch, Clinical Lead',
+    currentOccupancyOrVisits: 34
   }
 ];
 
@@ -1035,3 +1065,59 @@ export const languageTranslations: Record<string, any> = {
     trainingCompliance: 'Pagsasanay: 94.2%'
   }
 };
+
+export const mockTimeOffRequests: TimeOffRequest[] = [
+  {
+    id: 'leave-1',
+    staffId: 'staff-6',
+    staffName: 'Tomasz Nowak',
+    staffRole: 'Staff',
+    staffAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+    department: 'Care',
+    startDate: getTodayDateString(1),
+    endDate: getTodayDateString(2),
+    totalDays: 2,
+    reason: 'Annual Leave',
+    notes: 'Family wedding in Leeds. Shift cover requested for afternoon rounds.',
+    emergencyCoverNotes: 'Discussed with Liam Gallagher for cover exchange next week.',
+    status: 'pending',
+    requestedAt: new Date(Date.now() - 3600000 * 14).toISOString(),
+    tenantId: 'org-meadowbrook'
+  },
+  {
+    id: 'leave-2',
+    staffId: 'staff-5',
+    staffName: 'Priya Sharma',
+    staffRole: 'Staff',
+    staffAvatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150',
+    department: 'Care',
+    startDate: getTodayDateString(3),
+    endDate: getTodayDateString(3),
+    totalDays: 1,
+    reason: 'Study / Training Leave',
+    notes: 'Attending NHS Trust Specialist Wound Care & Tissue Viability Masterclass.',
+    emergencyCoverNotes: 'No clinical medication rounds scheduled during morning block.',
+    status: 'pending',
+    requestedAt: new Date(Date.now() - 3600000 * 28).toISOString(),
+    tenantId: 'org-meadowbrook'
+  },
+  {
+    id: 'leave-3',
+    staffId: 'staff-4',
+    staffName: 'Claire Beauchamp',
+    staffRole: 'Senior',
+    staffAvatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150',
+    department: 'Nursing',
+    startDate: getTodayDateString(-7),
+    endDate: getTodayDateString(-5),
+    totalDays: 3,
+    reason: 'Annual Leave',
+    notes: 'Approved family holiday.',
+    status: 'approved',
+    requestedAt: new Date(Date.now() - 3600000 * 240).toISOString(),
+    reviewedBy: 'Elena Vance (Admin)',
+    reviewedAt: new Date(Date.now() - 3600000 * 200).toISOString(),
+    reviewNotes: 'Adequate nursing cover confirmed with Sarah Jenkins.',
+    tenantId: 'org-meadowbrook'
+  }
+];

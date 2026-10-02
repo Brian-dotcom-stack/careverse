@@ -14,6 +14,10 @@ export interface TenantOrganization {
   totalBedsOrClients: number;
   activeStaffCount: number;
   logoColor: string;
+  zones?: string[];
+  phone?: string;
+  managerName?: string;
+  currentOccupancyOrVisits?: number;
 }
 
 export type StaffPresenceStatus = 'at_desk' | 'on_rounds' | 'on_break' | 'in_training' | 'off_duty' | 'in_huddle';
@@ -220,3 +224,97 @@ export interface LanguageStrings {
   incidents: string;
   trainingCompliance: string;
 }
+
+// ==========================================
+// Employee Onboarding & Compliance Types
+// ==========================================
+
+export type OnboardingDocumentStatus = 'pending' | 'submitted' | 'verified' | 'rejected' | 'expired';
+
+export interface OnboardingDocument {
+  id: string;
+  name: string;
+  category: 'identity' | 'compliance' | 'references' | 'health' | 'contracts';
+  required: boolean;
+  status: OnboardingDocumentStatus;
+  submittedDate?: string;
+  verifiedDate?: string;
+  verifiedBy?: string;
+  fileName?: string;
+  expiryDate?: string;
+  notes?: string;
+}
+
+export type TrainingModuleStatus = 'not_started' | 'in_progress' | 'completed' | 'overdue';
+
+export interface OnboardingTrainingModule {
+  id: string;
+  title: string;
+  category: 'statutory' | 'clinical' | 'care_certificate' | 'health_safety';
+  durationHours: number;
+  status: TrainingModuleStatus;
+  completedDate?: string;
+  score?: number; // e.g. 95%
+  expiryDate?: string;
+  certifiedBy?: string;
+}
+
+export type OnboardingOverallStatus = 'in_progress' | 'action_required' | 'ready_for_duty' | 'completed';
+
+export interface EmployeeOnboardingRecord {
+  id: string;
+  staffId?: string;
+  employeeName: string;
+  employeeRole: UserRole;
+  jobTitle: string;
+  department: 'Nursing' | 'Care' | 'Administration' | 'Management' | 'Housekeeping';
+  avatar: string;
+  email: string;
+  phone: string;
+  startDate: string;
+  targetCompletionDate: string;
+  mentorName: string;
+  status: OnboardingOverallStatus;
+  progressPercent: number; // 0 - 100
+  documents: OnboardingDocument[];
+  trainingModules: OnboardingTrainingModule[];
+  shadowShiftsCompleted: number;
+  shadowShiftsRequired: number;
+  inductionTourCompleted: boolean;
+  uniformAndBadgeIssued: boolean;
+  cqcRegistrationSignoff: boolean;
+  notes?: string;
+}
+
+export type TimeOffReason =
+  | 'Annual Leave'
+  | 'Sick Leave / Medical'
+  | 'Compassionate / Bereavement'
+  | 'Study / Training Leave'
+  | 'Parental / Family Care'
+  | 'Unpaid Leave';
+
+export type TimeOffStatus = 'pending' | 'approved' | 'rejected';
+
+export interface TimeOffRequest {
+  id: string;
+  staffId: string;
+  staffName: string;
+  staffRole: UserRole;
+  staffAvatar: string;
+  department: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  totalDays: number;
+  reason: TimeOffReason;
+  notes: string;
+  emergencyCoverNotes?: string;
+  status: TimeOffStatus;
+  requestedAt: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  reviewNotes?: string;
+  attachmentName?: string;
+  tenantId: string;
+}
+

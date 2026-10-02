@@ -15,6 +15,7 @@ import { SecurityAuditModal } from './components/security/SecurityAuditModal';
 import { ArchitectureViewerModal } from './components/docs/ArchitectureViewerModal';
 import { IncidentReportModal } from './components/modals/IncidentReportModal';
 import { AutoRotaModal } from './components/modals/AutoRotaModal';
+import { SwitchSiteModal } from './components/modals/SwitchSiteModal';
 
 import {
   Shield,
@@ -49,6 +50,7 @@ const MainAppContent: React.FC = () => {
   const [showDocsModal, setShowDocsModal] = useState(false);
   const [showIncidentModal, setShowIncidentModal] = useState(false);
   const [showAutoRotaModal, setShowAutoRotaModal] = useState(false);
+  const [showSwitchSiteModal, setShowSwitchSiteModal] = useState(false);
 
   return (
     <div className={`min-h-screen w-full max-w-full overflow-x-hidden flex flex-col font-sans antialiased selection:bg-teal-500 selection:text-white transition-colors duration-200 ${
@@ -71,6 +73,7 @@ const MainAppContent: React.FC = () => {
         onOpenSecurityModal={() => setShowSecurityModal(true)}
         onOpenDocsModal={() => setShowDocsModal(true)}
         onOpenIncidentModal={() => setShowIncidentModal(true)}
+        onOpenSwitchSiteModal={() => setShowSwitchSiteModal(true)}
       />
 
       {/* Module Tabs Navigation Bar */}
@@ -84,6 +87,7 @@ const MainAppContent: React.FC = () => {
             onOpenIncidentModal={() => setShowIncidentModal(true)}
             onNavigateToRota={() => setActiveTab('rota')}
             onOpenAutoRota={() => setShowAutoRotaModal(true)}
+            onOpenSwitchSiteModal={() => setShowSwitchSiteModal(true)}
           />
         )}
 
@@ -118,9 +122,13 @@ const MainAppContent: React.FC = () => {
           <div className="flex items-center gap-2">
             <span className="font-bold text-slate-900 dark:text-white">CareVerse Platform</span>
             <span className="text-slate-400">v2.4.0 • Enterprise SaaS</span>
-            <span className="rounded bg-teal-50 px-1.5 py-0.2 text-[10px] font-bold text-teal-800 dark:bg-teal-950 dark:text-teal-300">
-              Multi-Tenant ({activeTenant.name})
-            </span>
+            <button
+              onClick={() => setShowSwitchSiteModal(true)}
+              className="rounded bg-teal-50 hover:bg-teal-100 px-1.5 py-0.2 text-[10px] font-bold text-teal-800 dark:bg-teal-950 dark:hover:bg-teal-900 dark:text-teal-300 transition-colors cursor-pointer"
+              title="Click to Switch Active Care Site"
+            >
+              Site: {activeTenant.name} (Switch)
+            </button>
           </div>
 
           <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-400">
@@ -151,6 +159,11 @@ const MainAppContent: React.FC = () => {
         onClose={() => setShowClockModal(false)}
       />
 
+      <SwitchSiteModal
+        isOpen={showSwitchSiteModal}
+        onClose={() => setShowSwitchSiteModal(false)}
+      />
+
       <SecurityAuditModal
         isOpen={showSecurityModal}
         onClose={() => setShowSecurityModal(false)}
@@ -172,7 +185,7 @@ const MainAppContent: React.FC = () => {
       />
 
       {/* Floating Toast Notification Container */}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
+      <div className="fixed bottom-4 right-3 sm:right-4 left-3 sm:left-auto z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
         {toasts.map((toast) => (
           <div
             key={toast.id}

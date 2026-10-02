@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { StaffMember, IncidentReport, PolicyDocument } from '../../types';
+import { EmployeeOnboardingTracker } from './EmployeeOnboardingTracker';
+import { TimeOffAbsenceManager } from './TimeOffAbsenceManager';
 import {
   ShieldAlert,
   Users,
@@ -19,7 +21,8 @@ import {
   Mail,
   Shield,
   Eye,
-  Plus
+  Plus,
+  UserCheck
 } from 'lucide-react';
 
 interface HRComplianceSuiteProps {
@@ -30,6 +33,8 @@ export const HRComplianceSuite: React.FC<HRComplianceSuiteProps> = ({ onOpenInci
   const {
     activeTenant,
     staffList,
+    onboardingRecords,
+    timeOffRequests,
     incidents,
     updateIncidentStatus,
     policies,
@@ -39,13 +44,18 @@ export const HRComplianceSuite: React.FC<HRComplianceSuiteProps> = ({ onOpenInci
     addToast
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'staff' | 'dbs' | 'incidents' | 'policies' | 'vault'>('staff');
+  const [activeTab, setActiveTab] = useState<'timeoff' | 'onboarding' | 'staff' | 'dbs' | 'incidents' | 'policies' | 'vault'>('timeoff');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
   const [selectedIncident, setSelectedIncident] = useState<IncidentReport | null>(null);
   const [investigationNotes, setInvestigationNotes] = useState('');
 
   const isManager = userRole === 'Admin' || userRole === 'Manager' || userRole === 'HR';
+
+  // Active onboarding count
+  const activeOnboardingCount = onboardingRecords.filter((c) => c.status !== 'completed').length;
+  // Pending time off requests count
+  const pendingTimeOffCount = timeOffRequests.filter((r) => r.status === 'pending').length;
 
   // Filter staff
   const filteredStaff = staffList.filter((s) => {
@@ -98,6 +108,8 @@ export const HRComplianceSuite: React.FC<HRComplianceSuiteProps> = ({ onOpenInci
       {/* Navigation Sub-tabs */}
       <div className="flex space-x-2 border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
         {[
+          { id: 'timeoff', label: 'Time Off & Leave Requests', count: pendingTimeOffCount > 0 ? `${pendingTimeOffCount} Pending` : undefined, alert: pendingTimeOffCount > 0 },
+          { id: 'onboarding', label: 'Employee Onboarding & Training', count: activeOnboardingCount > 0 ? `${activeOnboardingCount} Starters` : undefined },
           { id: 'staff', label: 'Staff Directory & Profiles', count: staffList.length },
           { id: 'dbs', label: 'DBS & Training Matrix', count: dbsExpiringCount > 0 ? `${dbsExpiringCount} Alerts` : undefined, alert: dbsExpiringCount > 0 },
           { id: 'incidents', label: 'Incidents & Safeguarding', count: incidents.length },
@@ -119,7 +131,7 @@ export const HRComplianceSuite: React.FC<HRComplianceSuiteProps> = ({ onOpenInci
               <span
                 className={`rounded-full px-1.5 py-0.2 text-[10px] ${
                   tab.alert
-                    ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 font-bold'
+                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 font-bold'
                     : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
                 }`}
               >
@@ -129,6 +141,16 @@ export const HRComplianceSuite: React.FC<HRComplianceSuiteProps> = ({ onOpenInci
           </button>
         ))}
       </div>
+
+      {/* Tab: Time Off & Absence Sub-Module */}
+      {activeTab === 'timeoff' && (
+        <TimeOffAbsenceManager />
+      )}
+
+      {/* Tab: Employee Onboarding Sub-Module */}
+      {activeTab === 'onboarding' && (
+        <EmployeeOnboardingTracker />
+      )}
 
       {/* Tab 1: Staff Profiles Directory */}
       {activeTab === 'staff' && (

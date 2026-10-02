@@ -14,7 +14,8 @@ import {
   Fingerprint,
   FileCode2,
   ChevronDown,
-  CheckCircle2
+  CheckCircle2,
+  MapPin
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -22,18 +23,18 @@ interface HeaderProps {
   onOpenSecurityModal: () => void;
   onOpenDocsModal: () => void;
   onOpenIncidentModal: () => void;
+  onOpenSwitchSiteModal: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   onOpenClockModal,
   onOpenSecurityModal,
   onOpenDocsModal,
-  onOpenIncidentModal
+  onOpenIncidentModal,
+  onOpenSwitchSiteModal
 }) => {
   const {
-    tenants,
     activeTenant,
-    setActiveTenantId,
     currentUser,
     userRole,
     setUserRole,
@@ -51,18 +52,13 @@ export const Header: React.FC<HeaderProps> = ({
     t
   } = useApp();
 
-  const [showTenantMenu, setShowTenantMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
-  const tenantMenuRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Close menus when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (tenantMenuRef.current && !tenantMenuRef.current.contains(event.target as Node)) {
-        setShowTenantMenu(false);
-      }
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setShowUserMenu(false);
       }
@@ -75,105 +71,48 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-30 w-full border-b border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 transition-colors">
-      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-3 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-2.5 sm:px-6 lg:px-8">
         
-        {/* Left: Minimalist Brand & Organization Selector */}
-        <div className="flex items-center gap-2.5 sm:gap-3">
-          {/* Logo */}
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600 text-white shadow-xs">
-              <Building2 className="h-4 w-4" />
-            </div>
-            <span className="font-bold tracking-tight text-slate-900 text-base dark:text-white">
-              CareVerse
-            </span>
+        {/* Left: Minimalist Brand */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg bg-teal-600 text-white shadow-xs shrink-0">
+            <Building2 className="h-4 w-4" />
           </div>
-
-          <span className="text-slate-300 dark:text-slate-700">/</span>
-
-          {/* Minimal Organization Selector */}
-          <div className="relative" ref={tenantMenuRef}>
-            <button
-              id="tenant-switcher-button"
-              onClick={() => {
-                setShowTenantMenu(!showTenantMenu);
-                setShowUserMenu(false);
-              }}
-              className="flex items-center gap-1.5 rounded-lg py-1 px-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors"
-              title="Switch Organization"
-            >
-              <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
-              <span className="max-w-[100px] sm:max-w-[180px] md:max-w-[220px] truncate">
-                {activeTenant.name}
-              </span>
-              <ChevronDown className="h-3 w-3 text-slate-400 shrink-0" />
-            </button>
-
-            {showTenantMenu && (
-              <div className="absolute left-0 mt-1.5 w-72 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-800 dark:bg-slate-800 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
-                <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                  Switch Care Organization
-                </div>
-                {tenants.map((tItem) => (
-                  <button
-                    key={tItem.id}
-                    onClick={() => {
-                      setActiveTenantId(tItem.id);
-                      setShowTenantMenu(false);
-                    }}
-                    className={`flex w-full items-start gap-2.5 rounded-lg p-2 text-left text-xs transition-colors ${
-                      tItem.id === activeTenant.id
-                        ? 'bg-teal-50 font-semibold text-teal-900 dark:bg-teal-950/50 dark:text-teal-200'
-                        : 'text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700/50'
-                    }`}
-                  >
-                    <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-teal-600 dark:text-teal-400" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium truncate">{tItem.name}</span>
-                        <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                          {tItem.cqcRating}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-400">{tItem.sector}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <span className="font-bold tracking-tight text-slate-900 text-sm sm:text-base dark:text-white shrink-0">
+            CareVerse
+          </span>
         </div>
 
         {/* Right: Minimalist Controls (Theme Toggle, Clock In Pill, User Menu) */}
-        <div className="flex items-center gap-2 sm:gap-2.5">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
           
           {/* Night / Light Mode Toggle Button */}
           <button
             id="theme-toggle-btn"
             onClick={toggleDarkMode}
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"
+            className="flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"
             title={darkMode ? 'Switch to Light Mode' : 'Switch to Night Mode'}
             aria-label="Toggle theme"
           >
             {darkMode ? (
-              <Sun className="h-4 w-4 text-amber-400" />
+              <Sun className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-400" />
             ) : (
-              <Moon className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+              <Moon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-600 dark:text-slate-300" />
             )}
           </button>
 
-          {/* Clock In / Out Pill */}
+          {/* Clock In / Out Pill - Guaranteed fully on screen */}
           <button
             id="header-clock-action-btn"
             onClick={onOpenClockModal}
-            className={`flex items-center gap-1.5 rounded-lg px-2.5 sm:px-3 py-1.5 text-xs font-semibold shadow-xs transition-all cursor-pointer ${
+            className={`flex items-center gap-1 sm:gap-1.5 rounded-lg px-2 sm:px-3 py-1.5 text-xs font-semibold shadow-xs transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               isClockedIn
                 ? 'bg-amber-600 text-white hover:bg-amber-700'
                 : 'bg-teal-600 text-white hover:bg-teal-700'
             }`}
           >
-            <Clock className="h-3.5 w-3.5" />
-            <span>
+            <Clock className="h-3.5 w-3.5 shrink-0" />
+            <span className="whitespace-nowrap">
               {isClockedIn
                 ? activeClockRecord?.clockInTime
                   ? `Clocked In (${activeClockRecord.clockInTime})`
@@ -183,14 +122,11 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
 
           {/* User Profile & Unified Workspace Tools Menu */}
-          <div className="relative" ref={userMenuRef}>
+          <div className="relative shrink-0" ref={userMenuRef}>
             <button
               id="workspace-user-menu-btn"
-              onClick={() => {
-                setShowUserMenu(!showUserMenu);
-                setShowTenantMenu(false);
-              }}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white p-1 sm:pr-2 text-xs hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-800/90 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              className="flex items-center gap-1 sm:gap-1.5 rounded-lg border border-slate-200 bg-white p-1 sm:pr-2 text-xs hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-800/90 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
               title="Workspace Menu, RBAC & Settings"
             >
               <img
@@ -198,10 +134,10 @@ export const Header: React.FC<HeaderProps> = ({
                 alt={currentUser.name}
                 className="h-6 w-6 rounded-md object-cover ring-1 ring-teal-500/40 shrink-0"
               />
-              <span className="hidden sm:inline-block font-semibold text-slate-800 dark:text-slate-200 max-w-[80px] truncate">
+              <span className="hidden md:inline-block font-semibold text-slate-800 dark:text-slate-200 max-w-[80px] truncate">
                 {currentUser.name.split(' ')[0]}
               </span>
-              <span className="rounded bg-teal-100 px-1 py-0.2 text-[10px] font-bold text-teal-800 dark:bg-teal-950 dark:text-teal-300">
+              <span className="hidden sm:inline-block rounded bg-teal-100 px-1 py-0.2 text-[10px] font-bold text-teal-800 dark:bg-teal-950 dark:text-teal-300">
                 {userRole}
               </span>
               <ChevronDown className="h-3 w-3 text-slate-400 shrink-0" />
@@ -238,6 +174,36 @@ export const Header: React.FC<HeaderProps> = ({
                       <span className="text-[10px] text-slate-400">• {activeTenant.code}</span>
                     </div>
                   </div>
+                </div>
+
+                {/* Current Care Site & Switcher (Log my Care style) */}
+                <div className="rounded-xl border border-teal-200/80 bg-teal-50/70 p-2.5 dark:border-teal-900/60 dark:bg-teal-950/40">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-teal-800 dark:text-teal-300">
+                      <MapPin className="h-3 w-3 text-teal-600 dark:text-teal-400" />
+                      <span>Current Care Site</span>
+                    </div>
+                    <span className="rounded bg-teal-200/80 px-1.5 py-0.2 text-[9px] font-bold text-teal-900 dark:bg-teal-900 dark:text-teal-200">
+                      CQC: {activeTenant.cqcRating}
+                    </span>
+                  </div>
+                  <div className="mt-1 font-bold text-xs text-slate-900 dark:text-white truncate">
+                    {activeTenant.name}
+                  </div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                    {activeTenant.address}
+                  </div>
+                  <button
+                    id="profile-switch-site-btn"
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      onOpenSwitchSiteModal();
+                    }}
+                    className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 py-1.5 px-2 text-xs font-bold text-white transition-colors shadow-xs cursor-pointer"
+                  >
+                    <Building2 className="h-3.5 w-3.5" />
+                    <span>Switch Site / Service</span>
+                  </button>
                 </div>
 
                 {/* RBAC Role Selector */}
