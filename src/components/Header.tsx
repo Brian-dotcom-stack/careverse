@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { UserRole, StaffPresenceStatus, SupportedLanguage } from '../types';
+import { UserRole, SupportedLanguage } from '../types';
 import {
   Building2,
   Clock,
@@ -43,10 +43,8 @@ export const Header: React.FC<HeaderProps> = ({
     setUserRole,
     staffList,
     switchUser,
-    updatePresence,
     isClockedIn,
     activeClockRecord,
-    safeStaffingAnalysis,
     offlineMode,
     toggleOfflineMode,
     syncQueue,
@@ -59,21 +57,9 @@ export const Header: React.FC<HeaderProps> = ({
 
   const [showTenantMenu, setShowTenantMenu] = useState(false);
   const [showRoleMenu, setShowRoleMenu] = useState(false);
-  const [showPresenceMenu, setShowPresenceMenu] = useState(false);
   const [showLangMenu, setShowLangMenu] = useState(false);
 
   const roles: UserRole[] = ['Admin', 'HR', 'Manager', 'Senior', 'Staff'];
-
-  const presenceConfig: Record<StaffPresenceStatus, { label: string; color: string; bg: string }> = {
-    at_desk: { label: 'At Desk', color: 'text-blue-500', bg: 'bg-blue-500' },
-    on_rounds: { label: 'On Rounds', color: 'text-emerald-500', bg: 'bg-emerald-500' },
-    in_huddle: { label: 'In Huddle', color: 'text-purple-500', bg: 'bg-purple-500' },
-    on_break: { label: 'On Break', color: 'text-amber-500', bg: 'bg-amber-500' },
-    in_training: { label: 'In Training', color: 'text-indigo-500', bg: 'bg-indigo-500' },
-    off_duty: { label: 'Off Duty', color: 'text-slate-400', bg: 'bg-slate-400' }
-  };
-
-  const currentPresence = presenceConfig[currentUser.presenceStatus] || presenceConfig.at_desk;
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 transition-colors">
@@ -154,17 +140,8 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Center: Live Safe Staffing & Geofence Status */}
+        {/* Center: Live Geofence Status */}
         <div className="hidden lg:flex items-center gap-3">
-          <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50/70 px-3 py-1 text-xs text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
-            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span className="font-semibold">Safe Staffing:</span>
-            <span>{safeStaffingAnalysis.seniorsOnDuty} Senior • {safeStaffingAnalysis.carersOnDuty} Carers</span>
-            <span className="rounded bg-emerald-200/80 px-1 py-0.2 text-[10px] font-bold uppercase text-emerald-900 dark:bg-emerald-900 dark:text-emerald-100">
-              CQC Safe
-            </span>
-          </div>
-
           <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
             <MapPin className="h-3.5 w-3.5 text-teal-600" />
             <span>Geofence: <strong>{activeTenant.geofenceRadiusMeters}m</strong> active</span>
@@ -264,45 +241,6 @@ export const Header: React.FC<HeaderProps> = ({
                     </div>
                   </button>
                 ))}
-              </div>
-            )}
-          </div>
-
-          {/* Presence Dropdown */}
-          <div className="relative hidden sm:block">
-            <button
-              id="presence-toggle-btn"
-              onClick={() => setShowPresenceMenu(!showPresenceMenu)}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition-colors"
-              title="Change Virtual Presence"
-            >
-              <div className={`h-2.5 w-2.5 rounded-full ${currentPresence.bg}`} />
-              <span className="hidden xl:inline">{currentPresence.label}</span>
-              <ChevronDown className="h-3 w-3 text-slate-400" />
-            </button>
-
-            {showPresenceMenu && (
-              <div className="absolute right-0 mt-1.5 w-48 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-800 dark:bg-slate-800 z-50">
-                <div className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                  Virtual Presence Status
-                </div>
-                {(Object.keys(presenceConfig) as StaffPresenceStatus[]).map((statusKey) => {
-                  const conf = presenceConfig[statusKey];
-                  return (
-                    <button
-                      key={statusKey}
-                      id={`presence-option-${statusKey}`}
-                      onClick={() => {
-                        updatePresence(statusKey);
-                        setShowPresenceMenu(false);
-                      }}
-                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700/50"
-                    >
-                      <div className={`h-2.5 w-2.5 rounded-full ${conf.bg}`} />
-                      <span>{conf.label}</span>
-                    </button>
-                  );
-                })}
               </div>
             )}
           </div>
