@@ -1,26 +1,23 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Shift, UserRole, ShiftType } from '../../types';
+import { Shift, UserRole } from '../../types';
 import { mockShiftDefinitions, getTodayDateString } from '../../data/mockData';
 import {
-  CalendarDays,
-  Plus,
   Sparkles,
   AlertTriangle,
-  Users,
   Clock,
-  Send,
-  CheckCircle2,
   FileSpreadsheet,
   Filter,
   ChevronLeft,
   ChevronRight,
   ShieldAlert,
-  UserCheck,
-  UserPlus,
   Trash2,
   Edit2,
-  Info
+  Lock,
+  Plus,
+  Eye,
+  CheckCircle2,
+  UserCheck
 } from 'lucide-react';
 
 interface SmartRotaEngineProps {
@@ -37,7 +34,6 @@ export const SmartRotaEngine: React.FC<SmartRotaEngineProps> = ({ onOpenAutoRota
     addShift,
     updateShift,
     deleteShift,
-    claimOpenShift,
     broadcastOpenShift,
     addToast
   } = useApp();
@@ -46,6 +42,8 @@ export const SmartRotaEngine: React.FC<SmartRotaEngineProps> = ({ onOpenAutoRota
   const [selectedWing, setSelectedWing] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'week' | 'day'>('week');
   const [showAddShiftModal, setShowAddShiftModal] = useState(false);
+  const [editingShift, setEditingShift] = useState<Shift | null>(null);
+  const [viewingShift, setViewingShift] = useState<Shift | null>(null);
 
   // New shift form state
   const [newShiftDate, setNewShiftDate] = useState(getTodayDateString(0));
@@ -53,8 +51,10 @@ export const SmartRotaEngine: React.FC<SmartRotaEngineProps> = ({ onOpenAutoRota
   const [newShiftWing, setNewShiftWing] = useState('Unit A - Dementia Haven');
   const [newShiftStaffId, setNewShiftStaffId] = useState<string>('');
   const [newShiftRequiresMed, setNewShiftRequiresMed] = useState(false);
+  const [newShiftNotes, setNewShiftNotes] = useState('');
 
-  const isManagerOrAdmin = userRole === 'Admin' || userRole === 'Manager' || userRole === 'HR';
+  // Strictly enforce that ONLY Admin and Manager roles can edit or generate rotas
+  const isManagerOrAdmin = userRole === 'Admin' || userRole === 'Manager';
 
   // Generate 7 days for the week view
   const weekDays = Array.from({ length: 7 }, (_, i) => {
@@ -73,11 +73,16 @@ export const SmartRotaEngine: React.FC<SmartRotaEngineProps> = ({ onOpenAutoRota
   });
 
   // Shortage and conflict detectors
-  const shiftsWithConflicts = filteredShifts.filter((s) => (s.conflicts && s.conflicts.length > 0));
+  const shiftsWithConflicts = filteredShifts.filter((s) => s.conflicts && s.conflicts.length > 0);
   const openShifts = filteredShifts.filter((s) => s.status === 'open' || !s.assignedStaffId);
 
   const handleCreateShift = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isManagerOrAdmin) {
+      addToast('Permission Denied', 'Staff roles are restricted to viewing only. Only Managers and Admins can create rota shifts.', 'error');
+      return;
+    }
+
     const shiftDef = mockShiftDefinitions.find((def) => def.id === newShiftTypeId) || mockShiftDefinitions[0];
     const assignedStaff = staffList.find((s) => s.id === newShiftStaffId);
 
@@ -93,10 +98,48 @@ export const SmartRotaEngine: React.FC<SmartRotaEngineProps> = ({ onOpenAutoRota
       assignedStaffRole: assignedStaff?.role,
       status: assignedStaff ? 'assigned' : 'open',
       requiresMedCert: newShiftRequiresMed,
-      isOpenBroadcast: !assignedStaff
+      isOpenBroadcast: !assignedStaff,
+      notes: newShiftNotes.trim() || undefined
     });
 
     setShowAddShiftModal(false);
+    setNewShiftNotes('');
+  };
+
+  const handleUpdateShiftSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isManagerOrAdmin || !editingShift) {
+      addToast('Permission Denied', 'Staff roles are restricted to viewing only. Only Managers and Admins can edit rota shifts.', 'error');
+      return;
+    }
+
+    const shiftDef = mockShiftDefinitions.find((def) => def.id === editingShift.shiftTypeId) || mockShiftDefinitions[0];
+    const assignedStaff = staffList.find((s) => s.id === editingShift.assignedStaffId);
+
+    updateShift(editingShift.id, {
+      date: editingShift.date,
+      shiftTypeId: shiftDef.id,
+      shiftTitle: `${shiftDef.name} (${editingShift.unitOrWing})`,
+      startTime: shiftDef.startTime,
+      endTime: shiftDef.endTime,
+      unitOrWing: editingShift.unitOrWing,
+      assignedStaffId: assignedStaff?.id,
+      assignedStaffName: assignedStaff?.name,
+      assignedStaffRole: assignedStaff?.role,
+      status: assignedStaff ? 'assigned' : 'open',
+      requiresMedCert: editingShift.requiresMedCert,
+      notes: editingShift.notes
+    });
+
+    setEditingShift(null);
+  };
+
+  const handleDeleteShift = (shift: Shift) => {
+    if (!isManagerOrAdmin) {
+      addToast('Permission Denied', 'Staff roles are restricted to viewing only. Only Managers and Admins can delete shifts.', 'error');
+      return;
+    }
+    deleteShift(shift.id);
   };
 
   const handleExportCSV = () => {
@@ -124,11 +167,22 @@ export const SmartRotaEngine: React.FC<SmartRotaEngineProps> = ({ onOpenAutoRota
       {/* Top Header & Engine Controls */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="rounded bg-teal-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-wider text-teal-800 dark:bg-teal-950 dark:text-teal-300">
               Smart Rota Engine
             </span>
             <span className="text-xs text-slate-400 font-mono">Tenant: {activeTenant.name}</span>
+            {isManagerOrAdmin ? (
+              <span className="rounded bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950 dark:text-emerald-300 flex items-center gap-1">
+                <UserCheck className="h-3 w-3" />
+                Scheduling & Editing Rights ({userRole})
+              </span>
+            ) : (
+              <span className="rounded bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-800 dark:border-amber-900/60 dark:bg-amber-950 dark:text-amber-300 flex items-center gap-1">
+                <Lock className="h-3 w-3" />
+                View-Only Mode ({userRole})
+              </span>
+            )}
           </div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
             Dynamic Staff Roster & Scheduling
@@ -144,7 +198,7 @@ export const SmartRotaEngine: React.FC<SmartRotaEngineProps> = ({ onOpenAutoRota
             <button
               id="open-auto-rota-btn"
               onClick={onOpenAutoRotaModal}
-              className="flex items-center gap-1.5 rounded-lg bg-teal-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-teal-700 transition-colors"
+              className="flex items-center gap-1.5 rounded-lg bg-teal-600 px-3.5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-teal-700 transition-colors cursor-pointer"
             >
               <Sparkles className="h-4 w-4" />
               <span>Auto-Generate Rota (AI)</span>
@@ -155,7 +209,7 @@ export const SmartRotaEngine: React.FC<SmartRotaEngineProps> = ({ onOpenAutoRota
             <button
               id="add-manual-shift-btn"
               onClick={() => setShowAddShiftModal(true)}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition-colors"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition-colors cursor-pointer"
             >
               <Plus className="h-4 w-4 text-teal-600" />
               <span>Add Shift</span>
@@ -165,7 +219,7 @@ export const SmartRotaEngine: React.FC<SmartRotaEngineProps> = ({ onOpenAutoRota
           <button
             id="export-rota-csv-btn"
             onClick={handleExportCSV}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition-colors"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition-colors cursor-pointer"
             title="Download CSV for payroll audit"
           >
             <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
@@ -173,6 +227,23 @@ export const SmartRotaEngine: React.FC<SmartRotaEngineProps> = ({ onOpenAutoRota
           </button>
         </div>
       </div>
+
+      {/* Staff View-Only Advisory Notice */}
+      {!isManagerOrAdmin && (
+        <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/90 p-3.5 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-300">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400 shrink-0">
+            <Lock className="h-4 w-4 text-slate-500" />
+          </div>
+          <div className="flex-1">
+            <div className="font-semibold text-slate-900 dark:text-white">
+              Staff Restricted Access: View-Only Mode
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              You are currently viewing the roster with the <strong>{userRole}</strong> role. You can inspect shift times, assigned carers, and unit coverage. Creating, modifying, self-assigning, or auto-generating rotas is strictly restricted to <strong>Manager</strong> and <strong>Admin</strong> roles.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Real-time Shortage & Overtime Alert Bar */}
       {(openShifts.length > 0 || shiftsWithConflicts.length > 0) && (
@@ -184,14 +255,14 @@ export const SmartRotaEngine: React.FC<SmartRotaEngineProps> = ({ onOpenAutoRota
                 <div>
                   <span className="font-bold">{openShifts.length} Unfilled Shift Gaps</span>
                   <p className="text-[11px] text-amber-700 dark:text-amber-300">
-                    Safe staffing ratios risk alert. Broadcast to available bank carers.
+                    Safe staffing ratios risk alert. {isManagerOrAdmin ? 'Broadcast to available carers or assign.' : 'Manager allocation in progress.'}
                   </p>
                 </div>
               </div>
               {isManagerOrAdmin && (
                 <button
                   onClick={() => broadcastOpenShift(openShifts[0].id)}
-                  className="rounded bg-amber-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-amber-700"
+                  className="rounded bg-amber-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-amber-700 cursor-pointer"
                 >
                   Broadcast All
                 </button>
@@ -222,20 +293,20 @@ export const SmartRotaEngine: React.FC<SmartRotaEngineProps> = ({ onOpenAutoRota
         <div className="flex items-center gap-2">
           <button
             onClick={() => setCurrentDayOffset((o) => o - 7)}
-            className="rounded p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700"
+            className="rounded p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
             title="Previous Week"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
           <button
             onClick={() => setCurrentDayOffset(0)}
-            className="rounded px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+            className="rounded px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700 cursor-pointer"
           >
             Current Week
           </button>
           <button
             onClick={() => setCurrentDayOffset((o) => o + 7)}
-            className="rounded p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700"
+            className="rounded p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
             title="Next Week"
           >
             <ChevronRight className="h-4 w-4" />
@@ -253,7 +324,7 @@ export const SmartRotaEngine: React.FC<SmartRotaEngineProps> = ({ onOpenAutoRota
             <select
               value={selectedWing}
               onChange={(e) => setSelectedWing(e.target.value)}
-              className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-700 dark:text-slate-200"
+              className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-700 dark:text-slate-200 cursor-pointer"
             >
               <option value="all">All Wings & Units</option>
               <option value="Unit A">Unit A - Dementia Haven</option>
@@ -265,7 +336,7 @@ export const SmartRotaEngine: React.FC<SmartRotaEngineProps> = ({ onOpenAutoRota
           <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-700 dark:bg-slate-700 text-xs">
             <button
               onClick={() => setViewMode('week')}
-              className={`rounded-md px-2.5 py-1 font-medium transition-colors ${
+              className={`rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer ${
                 viewMode === 'week'
                   ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white'
                   : 'text-slate-600 dark:text-slate-300'
@@ -275,7 +346,7 @@ export const SmartRotaEngine: React.FC<SmartRotaEngineProps> = ({ onOpenAutoRota
             </button>
             <button
               onClick={() => setViewMode('day')}
-              className={`rounded-md px-2.5 py-1 font-medium transition-colors ${
+              className={`rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer ${
                 viewMode === 'day'
                   ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white'
                   : 'text-slate-600 dark:text-slate-300'
@@ -294,7 +365,7 @@ export const SmartRotaEngine: React.FC<SmartRotaEngineProps> = ({ onOpenAutoRota
           <div className="min-w-[900px]">
             {/* Header: Days of the week */}
             <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-900/40 text-center">
-              {weekDays.map((dateStr, idx) => {
+              {weekDays.map((dateStr) => {
                 const isToday = dateStr === getTodayDateString(0);
                 const d = new Date(dateStr);
                 const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
@@ -368,7 +439,7 @@ export const SmartRotaEngine: React.FC<SmartRotaEngineProps> = ({ onOpenAutoRota
                           </div>
 
                           {/* Assigned Staff or Open Status */}
-                          <div className="pt-1.5 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
+                          <div className="pt-1.5 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-1">
                             {shift.assignedStaffName ? (
                               <div className="flex items-center gap-1.5 truncate">
                                 <div className="h-5 w-5 rounded-full bg-teal-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0">
@@ -384,25 +455,52 @@ export const SmartRotaEngine: React.FC<SmartRotaEngineProps> = ({ onOpenAutoRota
                               </span>
                             )}
 
-                            {/* Claim / Actions */}
-                            {isOpen && (
-                              <button
-                                id={`claim-shift-btn-${shift.id}`}
-                                onClick={() => claimOpenShift(shift.id)}
-                                className="rounded bg-teal-600 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-teal-700"
-                              >
-                                Claim
-                              </button>
-                            )}
-
-                            {isManagerOrAdmin && !isOpen && (
-                              <button
-                                onClick={() => deleteShift(shift.id)}
-                                className="text-slate-400 hover:text-red-500 p-0.5"
-                                title="Delete Shift"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
+                            {/* Manager & Admin Editing Controls */}
+                            {isManagerOrAdmin ? (
+                              <div className="flex items-center gap-1">
+                                {isOpen && (
+                                  <button
+                                    id={`assign-shift-btn-${shift.id}`}
+                                    onClick={() => setEditingShift(shift)}
+                                    className="rounded bg-teal-600 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-teal-700 cursor-pointer"
+                                    title="Assign Staff to Shift"
+                                  >
+                                    Assign
+                                  </button>
+                                )}
+                                <button
+                                  id={`edit-shift-btn-${shift.id}`}
+                                  onClick={() => setEditingShift(shift)}
+                                  className="text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 p-0.5 cursor-pointer"
+                                  title="Edit Shift"
+                                >
+                                  <Edit2 className="h-3 w-3" />
+                                </button>
+                                <button
+                                  id={`delete-shift-btn-${shift.id}`}
+                                  onClick={() => handleDeleteShift(shift)}
+                                  className="text-slate-400 hover:text-red-500 p-0.5 cursor-pointer"
+                                  title="Delete Shift"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              /* Staff View-Only: Cannot edit or claim */
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => setViewingShift(shift)}
+                                  className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-0.5 cursor-pointer"
+                                  title="View Shift Details"
+                                >
+                                  <Eye className="h-3 w-3" />
+                                </button>
+                                {isOpen && (
+                                  <span className="rounded bg-amber-100/70 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 px-1.5 py-0.2 text-[9px] font-medium">
+                                    Open
+                                  </span>
+                                )}
+                              </div>
                             )}
                           </div>
 
@@ -466,12 +564,38 @@ export const SmartRotaEngine: React.FC<SmartRotaEngineProps> = ({ onOpenAutoRota
                       </div>
                       <div className="flex justify-between items-center text-slate-500 dark:text-slate-400 mt-2">
                         <span>Staff: {shift.assignedStaffName || 'Unassigned'}</span>
-                        {shift.status === 'open' && (
+                        
+                        {isManagerOrAdmin ? (
+                          <div className="flex items-center gap-1.5">
+                            {shift.status === 'open' && (
+                              <button
+                                onClick={() => setEditingShift(shift)}
+                                className="rounded bg-teal-600 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-teal-700 cursor-pointer"
+                              >
+                                Assign
+                              </button>
+                            )}
+                            <button
+                              onClick={() => setEditingShift(shift)}
+                              className="text-slate-400 hover:text-teal-600 p-1 cursor-pointer"
+                              title="Edit Shift"
+                            >
+                              <Edit2 className="h-3 w-3" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteShift(shift)}
+                              className="text-slate-400 hover:text-red-500 p-1 cursor-pointer"
+                              title="Delete Shift"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ) : (
                           <button
-                            onClick={() => claimOpenShift(shift.id)}
-                            className="rounded bg-teal-600 px-2 py-0.5 text-[10px] font-bold text-white"
+                            onClick={() => setViewingShift(shift)}
+                            className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-[10px] flex items-center gap-1 cursor-pointer"
                           >
-                            Claim
+                            <Eye className="h-3 w-3" /> Details
                           </button>
                         )}
                       </div>
@@ -490,8 +614,8 @@ export const SmartRotaEngine: React.FC<SmartRotaEngineProps> = ({ onOpenAutoRota
         </div>
       )}
 
-      {/* Manual Shift Creation Modal */}
-      {showAddShiftModal && (
+      {/* Manual Shift Creation Modal (Managers & Admins only) */}
+      {showAddShiftModal && isManagerOrAdmin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-800 animate-in fade-in zoom-in-95 duration-150">
             <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
@@ -563,6 +687,19 @@ export const SmartRotaEngine: React.FC<SmartRotaEngineProps> = ({ onOpenAutoRota
                 </select>
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Shift Notes & Handover Instructions
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 1-to-1 care handover, fluid chart review"
+                  value={newShiftNotes}
+                  onChange={(e) => setNewShiftNotes(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                />
+              </div>
+
               <div className="flex items-center gap-2 pt-1">
                 <input
                   type="checkbox"
@@ -580,18 +717,248 @@ export const SmartRotaEngine: React.FC<SmartRotaEngineProps> = ({ onOpenAutoRota
                 <button
                   type="button"
                   onClick={() => setShowAddShiftModal(false)}
-                  className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+                  className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-teal-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-teal-700"
+                  className="rounded-lg bg-teal-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 cursor-pointer"
                 >
                   Save Shift
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Shift Modal (Managers & Admins only) */}
+      {editingShift && isManagerOrAdmin && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-800 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700 mb-4">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300">
+                  <Edit2 className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Edit Rota Shift
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Modify shift timings, wing, and staff assignment
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingShift(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateShiftSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Shift Date
+                </label>
+                <input
+                  type="date"
+                  value={editingShift.date}
+                  onChange={(e) => setEditingShift({ ...editingShift, date: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Shift Type
+                </label>
+                <select
+                  value={editingShift.shiftTypeId}
+                  onChange={(e) => setEditingShift({ ...editingShift, shiftTypeId: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                >
+                  {mockShiftDefinitions.map((def) => (
+                    <option key={def.id} value={def.id}>
+                      {def.name} ({def.startTime} - {def.endTime})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Unit / Wing
+                </label>
+                <select
+                  value={editingShift.unitOrWing}
+                  onChange={(e) => setEditingShift({ ...editingShift, unitOrWing: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                >
+                  <option value="Unit A - Dementia Haven">Unit A - Dementia Haven</option>
+                  <option value="Unit B - Residential Wing">Unit B - Residential Wing</option>
+                  <option value="Facility-wide Night Cover">Facility-wide Night Cover</option>
+                  <option value="Community Domiciliary Cluster">Community Domiciliary Cluster</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Assigned Staff
+                </label>
+                <select
+                  value={editingShift.assignedStaffId || ''}
+                  onChange={(e) => setEditingShift({ ...editingShift, assignedStaffId: e.target.value || undefined })}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                >
+                  <option value="">-- Unassigned (Open Shift) --</option>
+                  {staffList.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.role} - {s.jobTitle})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Notes
+                </label>
+                <input
+                  type="text"
+                  value={editingShift.notes || ''}
+                  onChange={(e) => setEditingShift({ ...editingShift, notes: e.target.value })}
+                  placeholder="Operational notes"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="edit-req-med-cert"
+                  checked={editingShift.requiresMedCert || false}
+                  onChange={(e) => setEditingShift({ ...editingShift, requiresMedCert: e.target.checked })}
+                  className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                />
+                <label htmlFor="edit-req-med-cert" className="text-xs text-slate-700 dark:text-slate-300">
+                  Requires Certified Medication Practitioner (Level 3)
+                </label>
+              </div>
+
+              <div className="flex justify-between items-center pt-4 border-t border-slate-200 dark:border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleDeleteShift(editingShift);
+                    setEditingShift(null);
+                  }}
+                  className="text-xs font-semibold text-red-600 hover:text-red-700 flex items-center gap-1 cursor-pointer"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Delete Shift</span>
+                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingShift(null)}
+                    className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="rounded-lg bg-teal-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 cursor-pointer"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Staff Read-Only Shift Inspection Modal */}
+      {viewingShift && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-800 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700 mb-4">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300">
+                  <Eye className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Shift Details
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Read-only schedule information
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setViewingShift(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-700/60">
+                <span className="text-slate-400">Shift Name:</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">{viewingShift.shiftTitle}</span>
+              </div>
+              <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-700/60">
+                <span className="text-slate-400">Date & Hours:</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                  {viewingShift.date} ({viewingShift.startTime} - {viewingShift.endTime})
+                </span>
+              </div>
+              <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-700/60">
+                <span className="text-slate-400">Unit / Wing:</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">{viewingShift.unitOrWing}</span>
+              </div>
+              <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-700/60">
+                <span className="text-slate-400">Assigned Carer:</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                  {viewingShift.assignedStaffName || 'Unassigned (Open Cover)'}
+                </span>
+              </div>
+              <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-700/60">
+                <span className="text-slate-400">Medication Cert Required:</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                  {viewingShift.requiresMedCert ? 'Yes (Level 3)' : 'No'}
+                </span>
+              </div>
+              {viewingShift.notes && (
+                <div className="py-1.5 border-b border-slate-100 dark:border-slate-700/60">
+                  <span className="text-slate-400 block mb-0.5">Notes:</span>
+                  <p className="text-slate-700 dark:text-slate-300 italic">{viewingShift.notes}</p>
+                </div>
+              )}
+
+              <div className="mt-3 rounded-lg bg-amber-50 p-3 text-[11px] text-amber-800 dark:bg-amber-950/40 dark:text-amber-200 flex items-start gap-2 border border-amber-200 dark:border-amber-900/50">
+                <Lock className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
+                <span>
+                  <strong>Read-Only Mode:</strong> Your account role is <strong>{userRole}</strong>. Shifts can only be scheduled, reallocated, or modified by Managers and Admins.
+                </span>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-4 mt-2">
+              <button
+                onClick={() => setViewingShift(null)}
+                className="rounded-lg bg-slate-100 dark:bg-slate-700 px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-200 cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

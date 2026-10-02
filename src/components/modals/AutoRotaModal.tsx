@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Sparkles, ShieldCheck, Clock, Users, CheckCircle2 } from 'lucide-react';
+import { Sparkles, ShieldCheck, Clock, Users, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { getTodayDateString } from '../../data/mockData';
 
 interface AutoRotaModalProps {
@@ -9,7 +9,8 @@ interface AutoRotaModalProps {
 }
 
 export const AutoRotaModal: React.FC<AutoRotaModalProps> = ({ isOpen, onClose }) => {
-  const { autoGenerateRota, activeTenant } = useApp();
+  const { autoGenerateRota, activeTenant, userRole } = useApp();
+  const isManagerOrAdmin = userRole === 'Admin' || userRole === 'Manager';
 
   const [startDate, setStartDate] = useState(getTodayDateString(0));
   const [endDate, setEndDate] = useState(getTodayDateString(6));
@@ -164,22 +165,42 @@ export const AutoRotaModal: React.FC<AutoRotaModalProps> = ({ isOpen, onClose })
               </label>
             </div>
 
+            {!isManagerOrAdmin && (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200 flex items-center gap-2.5">
+                <ShieldAlert className="h-4 w-4 text-amber-600 shrink-0" />
+                <span>
+                  <strong>Scheduling Restricted:</strong> Your current role (<strong>{userRole}</strong>) does not have permission to generate rotas. Only users with Manager or Admin roles have permission to run the auto-allocation engine.
+                </span>
+              </div>
+            )}
+
             <div className="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
               <button
                 type="button"
                 onClick={onClose}
                 className="rounded-xl px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
               >
-                Cancel
+                {isManagerOrAdmin ? 'Cancel' : 'Close'}
               </button>
               <button
                 type="button"
                 onClick={handleRunGenerator}
-                disabled={isGenerating}
-                className="rounded-xl bg-teal-600 px-5 py-2 text-xs font-bold text-white hover:bg-teal-700 transition-colors shadow-md flex items-center gap-2"
+                disabled={isGenerating || !isManagerOrAdmin}
+                className={`rounded-xl px-5 py-2 text-xs font-bold text-white transition-colors shadow-md flex items-center gap-2 ${
+                  isManagerOrAdmin
+                    ? 'bg-teal-600 hover:bg-teal-700 cursor-pointer'
+                    : 'bg-slate-400 dark:bg-slate-700 cursor-not-allowed opacity-60'
+                }`}
+                title={!isManagerOrAdmin ? 'Manager or Admin permissions required' : undefined}
               >
                 <Sparkles className="h-4 w-4" />
-                <span>{isGenerating ? 'Computing Optimal Rota...' : 'Run Auto-Allocation'}</span>
+                <span>
+                  {!isManagerOrAdmin
+                    ? 'Manager Role Required'
+                    : isGenerating
+                    ? 'Computing Optimal Rota...'
+                    : 'Run Auto-Allocation'}
+                </span>
               </button>
             </div>
           </div>

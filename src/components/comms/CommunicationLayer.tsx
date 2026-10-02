@@ -99,7 +99,7 @@ export const CommunicationLayer: React.FC = () => {
       </div>
 
       {/* Main Chat Interface */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[600px]">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-auto lg:h-[600px]">
         
         {/* Left: Channels & Room Huddles (4 cols) */}
         <div className="lg:col-span-4 flex flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-800 overflow-hidden">
@@ -193,7 +193,7 @@ export const CommunicationLayer: React.FC = () => {
         </div>
 
         {/* Right: Message Stream & Input (8 cols) */}
-        <div className="lg:col-span-8 flex flex-col rounded-2xl border border-slate-200 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-800 overflow-hidden">
+        <div className="lg:col-span-8 flex flex-col rounded-2xl border border-slate-200 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-800 overflow-hidden min-h-[450px] lg:h-full">
           
           {/* Channel Header */}
           <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30">

@@ -37,7 +37,8 @@ const MainAppContent: React.FC = () => {
     toasts,
     removeToast,
     isClockedIn,
-    activeClockRecord
+    activeClockRecord,
+    darkMode
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<NavTabId>('workspace');
@@ -50,7 +51,9 @@ const MainAppContent: React.FC = () => {
   const [showAutoRotaModal, setShowAutoRotaModal] = useState(false);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col font-sans antialiased selection:bg-teal-500 selection:text-white transition-colors">
+    <div className={`min-h-screen w-full max-w-full overflow-x-hidden flex flex-col font-sans antialiased selection:bg-teal-500 selection:text-white transition-colors duration-200 ${
+      darkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
+    }`}>
       
       {/* Offline Mode Warning Banner */}
       {offlineMode && (
@@ -74,7 +77,7 @@ const MainAppContent: React.FC = () => {
       <Navigation activeTab={activeTab} setActiveTab={setActiveTab} />
 
       {/* Main Workspace Container */}
-      <main className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+      <main className="flex-1 mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8 py-4 sm:py-6 overflow-x-hidden">
         {activeTab === 'workspace' && (
           <VirtualOfficeHub
             onOpenClockModal={() => setShowClockModal(true)}

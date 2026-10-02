@@ -186,7 +186,7 @@ WS     /ws/v1/intercom                      // Spatial audio room WebRTC mesh & 
         </div>
 
         {/* Section Tabs */}
-        <div className="flex border-b border-slate-200 dark:border-slate-800 px-6 space-x-4 bg-slate-50/50 dark:bg-slate-900/50">
+        <div className="flex border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 space-x-4 bg-slate-50/50 dark:bg-slate-900/50 overflow-x-auto scrollbar-none">
           {[
             { id: 'overview', label: 'System Overview' },
             { id: 'database', label: 'PostgreSQL / Prisma Schema' },
@@ -197,7 +197,7 @@ WS     /ws/v1/intercom                      // Spatial audio room WebRTC mesh & 
             <button
               key={sec.id}
               onClick={() => setActiveSection(sec.id as any)}
-              className={`py-3 text-xs font-semibold border-b-2 transition-all ${
+              className={`py-3 text-xs font-semibold border-b-2 transition-all shrink-0 whitespace-nowrap ${
                 activeSection === sec.id
                   ? 'border-teal-600 text-teal-700 dark:border-teal-400 dark:text-teal-300'
                   : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400'

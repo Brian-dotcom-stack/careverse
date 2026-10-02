@@ -60,6 +60,8 @@ export const VirtualOfficeHub: React.FC<VirtualOfficeHubProps> = ({
   const [newNoteText, setNewNoteText] = useState('');
   const [activeIntercomAudio, setActiveIntercomAudio] = useState(false);
 
+  const isManagerOrAdmin = userRole === 'Admin' || userRole === 'Manager';
+
   const selectedRoom = virtualRooms.find((r) => r.id === selectedRoomId) || virtualRooms[0];
 
   const getStaffInRoom = (roomId: string): StaffMember[] => {
@@ -78,7 +80,7 @@ export const VirtualOfficeHub: React.FC<VirtualOfficeHubProps> = ({
   return (
     <div className="space-y-6 pb-12">
       {/* Top Banner: Virtual HQ Overview & Quick Actions */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-r from-teal-900 via-slate-900 to-teal-950 p-6 text-white shadow-md dark:border-slate-800">
+      <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-r from-teal-900 via-slate-900 to-teal-950 p-4 sm:p-6 text-white shadow-md dark:border-slate-800">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-1.5 max-w-2xl">
             <div className="flex items-center gap-2">
@@ -134,15 +136,27 @@ export const VirtualOfficeHub: React.FC<VirtualOfficeHubProps> = ({
               <span className="text-[10px] text-red-300">Safeguarding</span>
             </button>
 
-            <button
-              id="hub-auto-rota-quick-action"
-              onClick={onOpenAutoRota}
-              className="flex flex-col items-center justify-center rounded-xl border border-indigo-400/30 bg-indigo-500/20 p-3 text-center text-indigo-200 hover:bg-indigo-500/30 transition-all"
-            >
-              <Sparkles className="h-5 w-5 mb-1 text-indigo-300" />
-              <span className="text-xs font-bold">Auto-Rota</span>
-              <span className="text-[10px] text-indigo-300">AI Staffing</span>
-            </button>
+            {isManagerOrAdmin ? (
+              <button
+                id="hub-auto-rota-quick-action"
+                onClick={onOpenAutoRota}
+                className="flex flex-col items-center justify-center rounded-xl border border-indigo-400/30 bg-indigo-500/20 p-3 text-center text-indigo-200 hover:bg-indigo-500/30 transition-all cursor-pointer"
+              >
+                <Sparkles className="h-5 w-5 mb-1 text-indigo-300" />
+                <span className="text-xs font-bold">Auto-Rota</span>
+                <span className="text-[10px] text-indigo-300">AI Staffing</span>
+              </button>
+            ) : (
+              <button
+                id="hub-view-shifts-quick-action"
+                onClick={onNavigateToRota}
+                className="flex flex-col items-center justify-center rounded-xl border border-teal-400/30 bg-teal-500/20 p-3 text-center text-teal-200 hover:bg-teal-500/30 transition-all cursor-pointer"
+              >
+                <Users className="h-5 w-5 mb-1 text-teal-300" />
+                <span className="text-xs font-bold">Open Shifts</span>
+                <span className="text-[10px] text-teal-300">Claim Bank Hours</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -194,7 +208,7 @@ export const VirtualOfficeHub: React.FC<VirtualOfficeHubProps> = ({
           {/* Interactive 2D Spatial Floorplan View */}
           {viewMode === 'floorplan' ? (
             <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-5 dark:border-slate-800 dark:bg-slate-900/60 shadow-xs">
-              <div className="mb-3 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+              <div className="mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs text-slate-500 dark:text-slate-400">
                 <span className="flex items-center gap-1.5 font-medium">
                   <MapPin className="h-3.5 w-3.5 text-teal-600" />
                   Click any room to enter, view occupants or inspect whiteboard notes

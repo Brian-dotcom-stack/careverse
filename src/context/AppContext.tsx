@@ -211,7 +211,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // 4. Shifts & Smart Rota Engine
   const [shifts, setShifts] = useState<Shift[]>(mockShifts);
 
+  const isManagerOrAdminRole = () => {
+    return userRole === 'Admin' || userRole === 'Manager';
+  };
+
   const addShift = (shiftData: Omit<Shift, 'id' | 'tenantId'>) => {
+    if (!isManagerOrAdminRole()) {
+      addToast('Permission Denied', 'Staff roles are restricted to viewing only. Only Managers & Admins have scheduling rights to add shifts.', 'error');
+      return;
+    }
     const newShift: Shift = {
       ...shiftData,
       id: `shift-${Date.now()}`,
@@ -223,16 +231,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const updateShift = (shiftId: string, updates: Partial<Shift>) => {
+    if (!isManagerOrAdminRole()) {
+      addToast('Permission Denied', 'Staff roles are restricted to viewing only. Only Managers & Admins have permission to edit rota shifts.', 'error');
+      return;
+    }
     setShifts((prev) => prev.map((s) => (s.id === shiftId ? { ...s, ...updates } : s)));
-    addToast('Shift Updated', 'Rota changes saved', 'info');
+    logAudit('SHIFT_UPDATED', `Shift ID: ${shiftId}`, 'Shift parameters or staff allocation updated', 'info');
+    addToast('Shift Updated', 'Rota changes successfully saved', 'info');
   };
 
   const deleteShift = (shiftId: string) => {
+    if (!isManagerOrAdminRole()) {
+      addToast('Permission Denied', 'Staff roles are restricted to viewing only. Only Managers & Admins can delete shifts.', 'error');
+      return;
+    }
     setShifts((prev) => prev.filter((s) => s.id !== shiftId));
+    logAudit('SHIFT_DELETED', `Shift ID: ${shiftId}`, 'Shift removed from rota', 'warning');
     addToast('Shift Removed', 'Shift removed from rota', 'warning');
   };
 
   const claimOpenShift = (shiftId: string) => {
+    if (!isManagerOrAdminRole()) {
+      addToast('Permission Denied', 'Staff roles are restricted to viewing only. Only Managers and Admins can assign or alter rota shifts.', 'error');
+      return;
+    }
     setShifts((prev) =>
       prev.map((s) => {
         if (s.id === shiftId) {
@@ -248,11 +270,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return s;
       })
     );
-    logAudit('SHIFT_CLAIMED', `Shift ID: ${shiftId}`, `${currentUser.name} claimed open shift`, 'info');
-    addToast('Shift Claimed!', `You are now assigned to this shift. Added to your schedule.`, 'success');
+    logAudit('SHIFT_CLAIMED', `Shift ID: ${shiftId}`, `${currentUser.name} allocated open shift`, 'info');
+    addToast('Shift Assigned', `Shift allocated to ${currentUser.name}. Added to schedule.`, 'success');
   };
 
   const broadcastOpenShift = (shiftId: string) => {
+    if (!isManagerOrAdminRole()) {
+      addToast('Permission Denied', 'Staff roles cannot broadcast shifts. Only Managers & Admins have broadcast permissions.', 'error');
+      return;
+    }
     setShifts((prev) =>
       prev.map((s) => (s.id === shiftId ? { ...s, isOpenBroadcast: true, status: 'open' } : s))
     );
@@ -262,6 +288,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const autoGenerateRota = (startDate: string, options = { balanceHours: true, safeStaffingFloor: true }) => {
+    if (!isManagerOrAdminRole()) {
+      addToast('Permission Denied', 'Staff roles are restricted to viewing only. Automated rota generation requires Manager or Admin authorization.', 'error');
+      return { generatedCount: 0, conflictsCount: 0 };
+    }
     const carers = staffList.filter((s) => s.role === 'Staff');
     const seniors = staffList.filter((s) => s.role === 'Senior' || s.role === 'Manager');
     let generatedCount = 0;
@@ -615,7 +645,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // 9. Preferences & Localization
   const [language, setLanguageState] = useState<SupportedLanguage>('en');
-  const [darkMode, setDarkMode] = useState<boolean>(false);
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('careverse_dark_mode');
+      if (stored !== null) {
+        return stored === 'true';
+      }
+      return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const body = document.body;
+    if (darkMode) {
+      root.classList.add('dark');
+      body.classList.add('dark');
+      root.setAttribute('data-theme', 'dark');
+      root.style.colorScheme = 'dark';
+      localStorage.setItem('careverse_dark_mode', 'true');
+    } else {
+      root.classList.remove('dark');
+      body.classList.remove('dark');
+      root.setAttribute('data-theme', 'light');
+      root.style.colorScheme = 'light';
+      localStorage.setItem('careverse_dark_mode', 'false');
+    }
+  }, [darkMode]);
 
   const setLanguage = (lang: SupportedLanguage) => {
     setLanguageState(lang);
@@ -630,11 +687,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const toggleDarkMode = () => {
     setDarkMode((prev) => {
       const next = !prev;
-      if (next) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
+      addToast('Theme Updated', next ? 'Night mode enabled' : 'Light mode enabled', 'info');
       return next;
     });
   };
